@@ -11,6 +11,10 @@
 #include <stdlib.h>
 #include <math.h>
 
+// Ficheros de inclusión para que funcione el intellisense en Visual Studio
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
+
 #if _WIN32
 #include <Windows.h>
 #else
@@ -18,9 +22,6 @@
 #include <sys/time.h>
 #endif
 
-// Ficheros de inclusión para que funcione el intellisense en Visual Studio
-#include "cuda_runtime.h"
-#include "device_launch_parameters.h"
 
 #include "EasyBMP.h"
 
@@ -87,21 +88,32 @@ void CPUBackground(unsigned char *outputimage, unsigned char *inputb, unsigned c
 
 }
 
-
 // CUDA kernel background
-__global__ void GPUBackground(unsigned char *d_output, unsigned char *d_inputb, unsigned char *d_inputf, int width, int threshold)
+__global__ void GPUBackground(unsigned char *d_output, unsigned char *d_inputb, unsigned char *d_inputf, int width, int height, int threshold)
 {
-
-	/*
-	* Calculamos la fila y columna global para este hilo
-	*/
-	// TO DO
-
-
-	// Realizar la substracción para el pixel correspondiente a este hilo 
-	// TO DO
+	// Pixel coordinates
+	const int x = blockIdx.x * blockIdx.y + threadIdx.x;
+	const int y = blockIdx.y * blockIdx.y + threadIdx.y;
+	// Boundary check
+	if (x < 0 || y < 0 || x > width || y > height)
+		return;
 
 
+	int mean = 0;
+	for (int yWindow = -1; yWindow < 2; yWindow++) {
+		int y2 = y + yWindow;
+		for (int xWindow = -1; xWindow < 2; xWindow++) {
+			int x2 = x + xWindow;
+			mean += d_inputf[y2*width + x2];
+		}
+	}
+	mean /= 9;
+	int temp = abs((mean - d_inputb[y*width + x]));
+
+	if (temp > threshold)
+		d_output[y*width + x] = 255;
+	else
+		d_output[y*width + x] = 0;
 }
 
 /***********************************************************************************/
@@ -109,6 +121,9 @@ __global__ void GPUBackground(unsigned char *d_output, unsigned char *d_inputb, 
 // El main puede tener como argumentos: nombres de los fichero de las imagenes (tiene que ser BMP) y el umbral
 int main(int argc, char *argv[])
 {
+	for (int i = -3 / 2; i < 3 / 2; i++)
+		printf("%d\n", i);
+
 	double start_time_inc_data, end_time_inc_data;
 	double cpu_start_time, cpu_end_time;
 
@@ -149,7 +164,6 @@ int main(int argc, char *argv[])
 	gpu_output = (unsigned char*)calloc(HEIGHT * WIDTH, sizeof(unsigned char));
 	output_image = (unsigned char*)calloc(HEIGHT * WIDTH, sizeof(unsigned char));
 
-
 	for (int i = 0; i < WIDTH; i++)
 	{
 		for (int j = 0; j < HEIGHT; j++)
@@ -184,9 +198,14 @@ int main(int argc, char *argv[])
 	/***********************************************************/
 	// Ejecutar background en la GPU
 	/* Ejecución kernel  */
-	// TO DO - Calcular tamaño de bloque y grid para la correcta ejecucion del kernel
-	// TO DO - Ejecutar el kernel
+	dim3 threadsPerBlock(BLOCK_W, BLOCK_H);
 
+	// TODO maybe switch xBlocks and yBlocks' values
+	int xBlocks = WIDTH / BLOCK_W /*+ ((WIDTH % BLOCK_W) == 0 ? 0 : 1)*/;
+	int yBlocks = HEIGHT / BLOCK_H /*+ ((HEIGHT % BLOCK_H) == 0 ? 0 : 1)*/;
+	dim3 blocksPerGrid(xBlocks, yBlocks);
+
+	GPUBackground<<<blocksPerGrid, threadsPerBlock>>>(d_output, d_inputb, d_inputf, WIDTH, HEIGHT, Threshold);
 
 	// Copiamos de la memoria de la GPU 
 	cudaMemcpy(gpu_output, d_output, memSize, cudaMemcpyDeviceToHost);
@@ -218,7 +237,6 @@ int main(int argc, char *argv[])
 		}
 	}
 	printf("Errores %d\n", errors);
-
 	if (errors == 0) printf("\n\n ***TEST CORRECTO*** \n\n\n");
 
 	cudaFree(d_inputb);
