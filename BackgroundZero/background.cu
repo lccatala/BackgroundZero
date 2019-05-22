@@ -92,8 +92,8 @@ void CPUBackground(unsigned char *outputimage, unsigned char *inputb, unsigned c
 __global__ void GPUBackground(unsigned char *d_output, unsigned char *d_inputb, unsigned char *d_inputf, int width, int height, int threshold)
 {
 	// Pixel coordinates
-	const int x = blockIdx.x * blockIdx.y + threadIdx.x;
-	const int y = blockIdx.y * blockIdx.y + threadIdx.y;
+	const int x = blockIdx.x * blockDim.x + threadIdx.x;
+	const int y = blockIdx.y * blockDim.y + threadIdx.y;
 	// Boundary check
 	if (x < 0 || y < 0 || x > width || y > height)
 		return;
@@ -201,8 +201,8 @@ int main(int argc, char *argv[])
 	dim3 threadsPerBlock(BLOCK_W, BLOCK_H);
 
 	// TODO maybe switch xBlocks and yBlocks' values
-	int xBlocks = WIDTH / BLOCK_W /*+ ((WIDTH % BLOCK_W) == 0 ? 0 : 1)*/;
-	int yBlocks = HEIGHT / BLOCK_H /*+ ((HEIGHT % BLOCK_H) == 0 ? 0 : 1)*/;
+	int xBlocks = WIDTH / BLOCK_W + 1;
+	int yBlocks = HEIGHT / BLOCK_H + 1;
 	dim3 blocksPerGrid(xBlocks, yBlocks);
 
 	GPUBackground<<<blocksPerGrid, threadsPerBlock>>>(d_output, d_inputb, d_inputf, WIDTH, HEIGHT, Threshold);
