@@ -121,9 +121,6 @@ __global__ void GPUBackground(unsigned char *d_output, unsigned char *d_inputb, 
 // El main puede tener como argumentos: nombres de los fichero de las imagenes (tiene que ser BMP) y el umbral
 int main(int argc, char *argv[])
 {
-	for (int i = -3 / 2; i < 3 / 2; i++)
-		printf("%d\n", i);
-
 	double start_time_inc_data, end_time_inc_data;
 	double cpu_start_time, cpu_end_time;
 
